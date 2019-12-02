@@ -12,7 +12,7 @@ runParser :: Parser a -> String -> a
 runParser m s =
   case parse m s of
     [(res, [])] -> res
-    [(_, rs)]   -> error "Parser did not consume entire stream."
+    [(_, rs)]   -> error $ "Parser did not consume entire stream.\n" ++ show rs
     _           -> error "Parser error."
 
 instance Functor Parser where

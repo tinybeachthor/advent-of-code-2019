@@ -33,8 +33,11 @@ token p = do { a <- p; spaces; return a}
 reserved :: String -> Parser String
 reserved s = token (string s)
 
-spaces :: Parser String
-spaces = many $ oneOf " \n\r"
+white :: Parser Char
+white = oneOf " \n\r"
+
+spaces :: Parser [Char]
+spaces = many white
 
 digit :: Parser Char
 digit = satisfy isDigit

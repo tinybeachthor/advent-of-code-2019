@@ -13,6 +13,9 @@ satisfy p = do
      then return c
      else failure
 
+orNot :: (a -> Parser a) -> a -> Parser a
+orNot f a = f a <|> return a
+
 oneOf :: String -> Parser Char
 oneOf s = satisfy (`elem` s)
 
@@ -26,6 +29,9 @@ chainl p a = do { a <- p; rest a } <|> return a
 string :: String -> Parser String
 string [] = return []
 string (c:cs) = do { char c; string cs; return (c:cs)}
+
+line :: Parser String
+line = do { line <- some item; oneOf "\n\r"; return line }
 
 token :: Parser a -> Parser a
 token p = do { a <- p; spaces; return a}

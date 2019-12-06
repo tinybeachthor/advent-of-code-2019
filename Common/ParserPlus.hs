@@ -31,7 +31,11 @@ string [] = return []
 string (c:cs) = do { char c; string cs; return (c:cs)}
 
 line :: Parser String
-line = do { line <- some item; oneOf "\n\r"; return line }
+line = do
+  i <- item
+  if i `elem` "\n\r"
+     then return $ []
+     else do { l <- line; return $ i:l }
 
 token :: Parser a -> Parser a
 token p = do { a <- p; spaces; return a}

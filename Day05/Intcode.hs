@@ -2,7 +2,7 @@
 
 module Day05.Intcode where
 
-import Day05.Computer (MemoryInterface(MemoryInterface), InOut)
+import Day05.Computer (MemoryInterface(MemoryInterface), ProgramCounter, InOut)
 
 type Filename = String
 
@@ -33,6 +33,10 @@ data Op
   | Mul Param Param Param
   | Input Param
   | Output Param
+  | JT Param Param
+  | JF Param Param
+  | Less Param Param Param
+  | Equals Param Param Param
   deriving (Show)
 
 intCodeMemory :: [Int] -> MemoryInterface Op
@@ -45,6 +49,10 @@ opLen (Add a b r) = 4
 opLen (Mul a b r) = 4
 opLen (Input x)   = 2
 opLen (Output x)  = 2
+opLen (JT c r)    = 3
+opLen (JF c r)    = 3
+opLen (Less a b r)   = 4
+opLen (Equals a b r) = 4
 
 opRaw :: Op -> [Int]
 opRaw (Unknown x) = x:[]
@@ -61,6 +69,18 @@ opRaw (Input x)   =
 opRaw (Output x)  =
   let op = 4 + 100*(paramModeRaw x)
     in op:(value x):[]
+opRaw (JT c r)  =
+  let op = 5 + 100*(paramModeRaw c) + 1000*(paramModeRaw r)
+    in op:(value c):(value r):[]
+opRaw (JF c r)  =
+  let op = 6 + 100*(paramModeRaw c) + 1000*(paramModeRaw r)
+    in op:(value c):(value r):[]
+opRaw (Less a b r)  =
+  let op = 7 + 100*(paramModeRaw a) + 1000*(paramModeRaw b) + 10000*(paramModeRaw r)
+    in op:(value a):(value b):(value r):[]
+opRaw (Equals a b r)  =
+  let op = 8 + 100*(paramModeRaw a) + 1000*(paramModeRaw b) + 10000*(paramModeRaw r)
+    in op:(value a):(value b):(value r):[]
 
 parse :: [Int] -> Op
 parse [] = error "MEMORY EMPTY"
@@ -79,20 +99,49 @@ parse (x:xs) =
                 in Input (Param am r)
         4  -> let (r:rest) = xs
                 in Output (Param am r)
+        5  -> let (c:r:rest) = xs
+                in JT (Param am c) (Param bm r)
+        6  -> let (c:r:rest) = xs
+                in JF (Param am c) (Param bm r)
+        7  -> let (a:b:r:rest) = xs
+                in Less (Param am a) (Param bm b) (Param cm r)
+        8  -> let (a:b:r:rest) = xs
+                in Equals (Param am a) (Param bm b) (Param cm r)
         99 -> Exit
         _  -> Unknown x
 
-execute :: (InOut, [Int]) -> Op -> (InOut, [Int], Bool)
-execute (io, mem) (Exit)      = (io,mem,True)
-execute (io, mem) (Add a b r) = (io,update mem r $ execOp mem (+) a b, False)
-execute (io, mem) (Mul a b r) = (io,update mem r $ execOp mem (*) a b, False)
-execute ((input,out),mem) (Input x)  =
+execute :: (InOut, [Int], ProgramCounter) -> (InOut, [Int], ProgramCounter, Bool)
+execute (io, mem, pc) =
+  let op = parse $ drop pc mem
+   in executeOp (io, mem) pc op
+
+executeOp :: (InOut, [Int]) -> ProgramCounter -> Op -> (InOut, [Int], ProgramCounter, Bool)
+executeOp (io, mem) pc op@(Exit)      = (io,mem, pc + opLen op, True)
+executeOp (io, mem) pc op@(Add a b r) = (io,update mem r $ execOp mem (+) a b, pc + opLen op, False)
+executeOp (io, mem) pc op@(Mul a b r) = (io,update mem r $ execOp mem (*) a b, pc + opLen op, False)
+executeOp ((input,out),mem) pc op@(Input x)  =
   let mem' = update mem x (head input)
-    in ((tail input,out),mem',False)
-execute ((input,out),mem) (Output x) =
+    in ((tail input,out),mem', pc + opLen op, False)
+executeOp ((input,out),mem) pc op@(Output x) =
   let v = get (value x) mem
-    in ((input,v:out),mem,False)
-execute _ op = error $ "UNKNONW INSTRUCTION : " ++ show op
+    in ((input,v:out),mem, pc + opLen op, False)
+executeOp (io, mem) pc op@(JT c r) =
+  let m = resolveParam mem c
+      pc' = if m /= 0 then resolveParam mem r else pc + opLen op
+   in (io, mem, pc', False)
+executeOp (io, mem) pc op@(JF c r) =
+  let m = resolveParam mem c
+      pc' = if m == 0 then resolveParam mem r else pc + opLen op
+   in (io, mem, pc', False)
+executeOp (io, mem) pc op@(Less a b r) =
+  let a' = resolveParam mem a
+      b' = resolveParam mem b
+   in (io,update mem r $ if a' < b' then 1 else 0, pc + opLen op, False)
+executeOp (io, mem) pc op@(Equals a b r) =
+  let a' = resolveParam mem a
+      b' = resolveParam mem b
+   in (io,update mem r $ if a' == b' then 1 else 0, pc + opLen op, False)
+executeOp _ pc op = error $ "UNKNONW INSTRUCTION : " ++ show op
 
 resolveParam :: [Int] -> Param -> Int
 resolveParam mem p = case mode p of
@@ -112,4 +161,3 @@ update :: [Int] -> Param -> Int -> [Int]
 update mem a v =
   let (h, t) = splitAt (value a) mem
    in h ++ [v] ++ (tail t)
-

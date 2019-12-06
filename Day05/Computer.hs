@@ -20,7 +20,7 @@ data MemoryInterface a = MemoryInterface {
   -- Parse operations from raw
   parse   :: [Int] -> a,
   -- Execute single operation
-  execute :: (InOut, [Int]) -> a -> (InOut, [Int], Bool)
+  execute :: (InOut, [Int], ProgramCounter) -> (InOut, [Int], ProgramCounter, Bool)
 }
 
 updateMemory :: MemoryInterface a -> [Int] -> MemoryInterface a
@@ -40,9 +40,8 @@ intComputer = Computer executeComputer
   where
     executeComputer :: (InOut, MemoryInterface a, ProgramCounter) -> (InOut, MemoryInterface a, ProgramCounter, Bool)
     executeComputer (io, mi, pc) =
-      let op = parse mi $ drop pc (memory mi)
-          (io', m', end) = execute mi (io, memory mi) op
-       in (io', updateMemory mi m', pc + (opLen mi op), end)
+      let (io', m', pc', end) = execute mi (io, memory mi, pc)
+       in (io', updateMemory mi m', pc', end)
 
 stepIO :: MemoryInterface a -> ProgramCounter -> InOut -> IO (InOut, MemoryInterface a, ProgramCounter, Bool)
 stepIO mem pc (input,output) = do

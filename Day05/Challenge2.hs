@@ -1,20 +1,10 @@
 import qualified Day05.Input (get)
-import Day05.Computer
-  (ProgramCounter, Computer(..), MemoryInterface, stepIO)
-import Day05.Intcode
+import Common.IntComputer
+import Day05.Intcode (step)
 
-main :: IO ()
 main = do
-  memory <- Day05.Input.get "Day05/input"
-  putStrLn . show $ 0
-  putStrLn . show $ memory
-  final <- runIO [5] (intCodeMemory memory) 0
-  putStrLn . show $ final
-
-runIO :: [Int] -> MemoryInterface a -> ProgramCounter -> IO ([Int])
-runIO input code pc = do
-  let io = (input,[])
-  (io', code', pc', end) <- stepIO code pc io
-  if end then return (snd io') else do
-    output <- runIO (fst io') code' pc'
-    return $ (snd io') ++ output
+  code <- Day05.Input.get "Day05/input"
+  let state = ComputerState (0, code) ([5], [])
+  (_, state') <- runComputerM (intComputer step) state
+  let (i,o) = _io state'
+  putStrLn . show $ o

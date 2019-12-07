@@ -2,10 +2,16 @@
 
 module Day05.Intcode where
 
-import Day05.Computer (MemoryInterface(MemoryInterface), ProgramCounter, InOut)
+import Common.IntComputer
+  (ProgramCounter, InOut)
 
-type Filename = String
+step :: (ProgramCounter, [Int], InOut) -> (ProgramCounter, [Int], InOut, Bool)
+step (pc, mem, io) =
+  let op = parse $ drop pc mem
+      (io', mem', pc', end) = executeOp (io, mem) pc op
+   in (pc', mem', io', end)
 
+-- Mode
 data Mode = Position | Immediate
   deriving (Show)
 
@@ -38,9 +44,6 @@ data Op
   | Less Param Param Param
   | Equals Param Param Param
   deriving (Show)
-
-intCodeMemory :: [Int] -> MemoryInterface Op
-intCodeMemory m = MemoryInterface m opLen opRaw parse execute
 
 opLen :: Op -> Int
 opLen (Unknown x) = 1
@@ -110,15 +113,10 @@ parse (x:xs) =
         99 -> Exit
         _  -> Unknown x
 
-execute :: (InOut, [Int], ProgramCounter) -> (InOut, [Int], ProgramCounter, Bool)
-execute (io, mem, pc) =
-  let op = parse $ drop pc mem
-   in executeOp (io, mem) pc op
-
 executeOp :: (InOut, [Int]) -> ProgramCounter -> Op -> (InOut, [Int], ProgramCounter, Bool)
 executeOp (io, mem) pc op@(Exit)      = (io,mem, pc + opLen op, True)
-executeOp (io, mem) pc op@(Add a b r) = (io,update mem r $ execOp mem (+) a b, pc + opLen op, False)
-executeOp (io, mem) pc op@(Mul a b r) = (io,update mem r $ execOp mem (*) a b, pc + opLen op, False)
+executeOp (io, mem) pc op@(Add a b r) = (io,update mem r $ execFn mem (+) a b, pc + opLen op, False)
+executeOp (io, mem) pc op@(Mul a b r) = (io,update mem r $ execFn mem (*) a b, pc + opLen op, False)
 executeOp ((input,out),mem) pc op@(Input x)  =
   let mem' = update mem x (head input)
     in ((tail input,out),mem', pc + opLen op, False)
@@ -143,13 +141,14 @@ executeOp (io, mem) pc op@(Equals a b r) =
    in (io,update mem r $ if a' == b' then 1 else 0, pc + opLen op, False)
 executeOp _ pc op = error $ "UNKNONW INSTRUCTION : " ++ show op
 
+-- Helpers
 resolveParam :: [Int] -> Param -> Int
 resolveParam mem p = case mode p of
                           Immediate -> value p
                           Position  -> get (value p) mem
 
-execOp :: [Int] -> (Int -> Int -> Int) -> Param -> Param -> Int
-execOp mem f a b =
+execFn :: [Int] -> (Int -> Int -> Int) -> Param -> Param -> Int
+execFn mem f a b =
   let a' = resolveParam mem a
       b' = resolveParam mem b
    in f a' b'

@@ -21,15 +21,25 @@ newtype ComputerM a =
 runComputerM :: ComputerM a -> ComputerState -> IO (a, ComputerState)
 runComputerM c s = runStateT (unComputerM c) s
 
-type Step = (ProgramCounter, [Int], InOut) -> (ProgramCounter, [Int], InOut, Bool)
+type Step =
+  (ProgramCounter, [Int], InOut) -> (ProgramCounter, [Int], InOut, Bool)
+
+interruptibleComputer :: Step -> ComputerM (Maybe Int)
+interruptibleComputer step = do
+  state <- get
+  let (pc, mem) = _memory state
+  let io@(i,o) = _io state
+  let (pc', mem', io'@(i',o'), end) = step (pc, mem, io)
+  put $ ComputerState (pc', mem') io'
+  if end
+     then return Nothing
+     else if o' /= o
+             then return $ Just (head o')
+             else interruptibleComputer step
 
 intComputer :: Step -> ComputerM ()
 intComputer step = do
-  state <- get
-  let (pc, mem) = _memory state
-  let io = _io state
-  let (pc', mem', io', end) = step (pc, mem, io)
-  put $ ComputerState (pc', mem') io'
-  if end
-     then return ()
-     else intComputer step
+  o <- interruptibleComputer step
+  case o of
+    Nothing -> return ()
+    _ -> intComputer step

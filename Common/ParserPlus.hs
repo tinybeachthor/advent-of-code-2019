@@ -61,6 +61,12 @@ number = do
   cs <- some digit
   return $ read (s ++ cs)
 
+bigNumber :: Parser Integer
+bigNumber = do
+  s <- string "-" <|> return []
+  cs <- some digit
+  return $ read (s ++ cs)
+
 parens :: Parser a -> Parser a
 parens m = do
   reserved "("

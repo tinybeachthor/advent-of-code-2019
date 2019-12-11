@@ -5,4 +5,5 @@
     exec ghci
       --package mtl
       --package sort
+      --package containers
 -}

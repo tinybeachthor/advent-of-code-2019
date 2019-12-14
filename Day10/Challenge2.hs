@@ -4,43 +4,42 @@ import Data.Sort
 
 main = do
   field <- load "Day10/input"
-  let testSets = gen1toN field
-  let visibleFrom = inLOS <$> testSets
-  putStrLn . show $ visibleFrom
+  let base = (22, 19)
+  let others = filter (base /=) field
+  let angled = (\a -> (angle base a, [a])) <$> others
+  let ordered = sortOn fst angled
+  putStrLn . show $ ordered
+  let reduced = (sortOn $ euclidean base) <$> foldSame ordered
+  putStrLn . show $ reduced
+  let shot = zip [1,2 ..] (unwrap reduced)
+  mapM_ (putStrLn . show) shot
 
--- inLOS :: (Asteroid, [Asteroid]) -> (Asteroid, Int)
--- inLOS (a, as) =
---   let sorted = sortOn (euclidean a) as
---    in (a, countVisible a sorted)
+unwrap :: [[Asteroid]] -> [Asteroid]
+unwrap [] = []
+unwrap as =
+  let fulls = filter ([] /=) as
+      splits = firstsAndRests fulls
+      firsts = fst <$> splits
+      rests = snd <$> splits
+   in firsts ++ (unwrap rests)
 
--- removeHidden :: Asteroid -> Asteroid -> [Asteroid] -> [Asteroid]
--- removeHidden _ _ []     = []
--- removeHidden x a (b:bs) =
---   if intersect x a b
---      then removeHidden x a bs
---      else b : removeHidden x a bs
+firstsAndRests :: [[a]] -> [(a,[a])]
+firstsAndRests [] = []
+firstsAndRests xss = [(head xs, tail xs) | xs <- xss]
 
-intersect :: Asteroid -> Asteroid -> Asteroid -> Bool
-intersect (xx, xy) (ax, ay) (bx, by) =
-  let (vx,vy) = (ax - xx, ay - xy)
-      x = (fromIntegral (bx - xx)) / (fromIntegral vx)
-      y = (fromIntegral (by - xy)) / (fromIntegral vy)
-   in (x > 0 && y > 0 && x == y)
-   || (vx == 0 && (bx - xx) == 0 && (ay - xy) * (by - xy) > 0)
-   || (vy == 0 && (by - xy) == 0 && (ax - xx) * (bx - xx) > 0)
+foldSame :: [(Double, [Asteroid])] -> [[Asteroid]]
+foldSame [] = []
+foldSame ((a,as):(b,bs):rest) =
+  if a == b
+     then foldSame $ (a, as ++ bs) : rest
+     else as : (foldSame $ (b,bs) : rest)
+foldSame (a:[]) = (snd a):[]
 
-shadows :: Asteroid -> Asteroid -> [Asteroid] -> [Asteroid]
-shadows _ _ [] = []
-shadows x b (a:as) =
-  if intersect x b a
-     then a : shadows x b as
-     else shadows x b as
-
--- Helpers
-
-gen1toN :: [a] -> [(a,[a])]
-gen1toN [] = []
-gen1toN (a:as) = (a, as) : ((\(b, bs) -> (b, a:bs)) <$> (gen1toN as))
+angle :: Asteroid -> Asteroid -> Double
+angle (a, b) (x, y) =
+  let u = fromIntegral $ x - a
+      v = fromIntegral $ y - b
+   in 0 - atan2 u v
 
 euclidean :: (Int,Int) -> (Int,Int) -> Int
 euclidean (a,b) (x,y) = (a-x)*(a-x) + (b-y)*(b-y)
